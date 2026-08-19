@@ -1,0 +1,45 @@
+%% ttrpg-core.sty
+%% JSON → LaTeX data pipeline for LuaLaTeX.
+%% Needs TeX Live (dkjson.lua) and _library/ in TEXINPUTS:
+%%   ensure_path('TEXINPUTS', '../_library//')
+
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{ttrpg-core}[2026/05/31 v1.0 TTRPG data-driven publishing engine]
+
+%% Halt cleanly on pdflatex/xelatex — this package is LuaLaTeX only.
+\RequirePackage{iftex}
+\RequireLuaTeX
+
+%% \ifcsname is used by \ifhas; multicol and xstring are used by \generateOGL.
+\RequirePackage{etoolbox}
+\RequirePackage{multicol}
+\RequirePackage{xstring}
+\RequirePackage{xparse}
+
+\RequirePackage{fancybox}
+\RequirePackage[dvipsnames]{xcolor}
+
+
+%% Locate _library/lua/ via kpse and load the Lua modules into globals
+%% so every subsequent \directlua{} can access them without re-requiring.
+\directlua{
+do
+local sty_path = kpse.find_file("ttrpg-core.sty", "tex")
+local lib_dir = sty_path and sty_path:match("^(.*)/[^/]+$") or "."
+local bootstrap_path = lib_dir .. "/lua/bootstrap.lua"
+local ok_boot, bootstrap_mod = pcall(dofile, bootstrap_path)
+if ok_boot then
+bootstrap_mod.init(sty_path)
+else
+texio.write_nl(
+"Package ttrpg-core Error: failed to load bootstrap.lua: " .. tostring(bootstrap_mod)
+)
+end
+end
+}
+\input{tex/data-access.tex}
+\input{tex/print-helpers.tex}
+\input{tex/database.tex}
+\input{tex/handout.tex}
+
+\endinput

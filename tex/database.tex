@@ -1,0 +1,111 @@
+%% database.tex
+%% Database and OGL entrypoint commands for ttrpg-core.
+
+%% \generateDatabase[mode]{path}{UserMacro}
+%% Scans path for .json files, writes .ttrpg_cache/, and \inputs the manifest.
+%% Special case: when UserMacro is "LaTex" (case-insensitive), scanner reads
+%% .tex files directly from path and emits \input/\include lines without JSON
+%% parsing or cache generation.
+%%
+%% mode (default: hybrid):
+%%   hybrid  — \include per chapter folder, \input per item; supports per-chapter \includeonly
+%%   include — \include per item; supports per-item \includeonly
+%%   input   — flat \input list; simplest, no \includeonly support
+%%
+%% Inside UserMacro, access values with \get{key} and \ifhas{key}{code}.
+%% Fast iteration: \includeonly{.ttrpg_cache/_chap--monsters--humanoids}
+\newcommand{\generateDatabase}[3][hybrid]{%
+  \directlua{
+    if not ttrpg_scanner then
+    ttrpg_scanner = ttrpg_load_module("scanner")
+    end
+
+    local manifest = ttrpg_scanner.generate(
+    "\luaescapestring{#2}",
+    "\luaescapestring{#1}",
+    "\luaescapestring{#3}"
+    )
+    tex.print("\\input{" .. manifest .. "}")
+  }%
+}
+
+%% \generateDatabaseWithCallback[mode]{path}{UserMacro}{LuaCallbackName}
+%% Same as \generateDatabase, but allows a Lua chapter callback to emit custom
+%% heading/chapter preamble per top-level folder.
+\newcommand{\generateDatabaseWithCallback}[4][hybrid]{%
+\directlua{
+if not ttrpg_scanner then
+ttrpg_scanner = ttrpg_load_module("scanner")
+end
+
+local chapter_cb = "\luaescapestring{#4}"
+local wrapper_cb = chapter_cb .. "_wrapper"
+local wrapper_opt = nil
+if type(_G[wrapper_cb]) == "function" then
+wrapper_opt = wrapper_cb
+end
+
+local manifest = ttrpg_scanner.generate(
+"\luaescapestring{#2}",
+"\luaescapestring{#1}",
+"\luaescapestring{#3}",
+{ chapter_callback = chapter_cb, chapter_wrapper_callback = wrapper_opt }
+)
+tex.print("\\input{" .. manifest .. "}")
+}%
+}
+
+%% \importDir[mode]{path}
+%% Defaults to include mode so each imported file starts on a new page.
+\NewDocumentCommand{\importDir}{O{include} m}{%
+  \generateDatabase[#1]{#2}{LaTeX}%
+}
+
+%% \importDirWithCallback[mode]{path}{LuaCallbackName}
+\NewDocumentCommand{\importDirWithCallback}{O{include} m m}{%
+  \generateDatabaseWithCallback[#1]{#2}{LaTeX}{#3}%
+}
+
+%% Shared recursive folder counters.
+%% The generic form accepts a comma-separated folder list and a format.
+%% Use \\countTex and \\countJson for common cases.
+\NewDocumentCommand{\countFiles}{O{tex} m}{%
+  \directlua{
+    if not ttrpg_folder_counter then
+    ttrpg_folder_counter = ttrpg_load_module("folder_counter")
+    end
+    tex.print(tostring(ttrpg_folder_counter.count(
+    "\luaescapestring{#2}",
+    "\luaescapestring{#1}"
+    )))
+  }%
+}
+
+\NewDocumentCommand{\countTex}{m}{%
+  \countFiles[tex]{#1}%
+}
+
+\NewDocumentCommand{\countJson}{m}{%
+  \countFiles[json]{#1}%
+}
+
+%% \generateOGL{csvpath}
+%% Reads a CSV of copyright credits and typesets a full OGL chapter.
+%%
+%% CSV columns: title, year, publisher, authors
+%% An optional header row is skipped if the first field is "title".
+%% Fields containing commas must be quoted with double-quotes.
+%% LaTeX macros in any field (e.g. \textbf{}, \&) are passed through as-is.
+\newcommand{\generateOGL}[1][./credits.csv]{%
+  \directlua{
+    if not ttrpg_ogl then
+    local ok, mod = pcall(ttrpg_load_module, "ogl")
+    if not ok then
+    error("ttrpg-core: failed to load ogl.lua: " .. tostring(mod))
+    end
+    ttrpg_ogl = mod
+    end
+
+    ttrpg_ogl.generate("\luaescapestring{#1}")
+  }%
+}

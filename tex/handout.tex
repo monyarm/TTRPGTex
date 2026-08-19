@@ -1,0 +1,56 @@
+\renewcommand{\figurename}{Handout}
+
+\newcounter{handoutCount}
+\setcounter{handoutCount}{0}
+
+\makeatletter
+\NewDocumentCommand\defineTextHandout{m m m}{
+    \defineHandout{#1}{#2}{\begin{tcolorbox}#3\end{tcolorbox}}
+}
+\NewDocumentCommand\defineImageHandout{m m m}{
+    \defineHandout{#1}{#2}{\image{#3}}
+}
+\NewDocumentCommand\defineHandout{m m m}{
+
+    \global\expandafter\gdef\csname handout@#1\endcsname{
+        #3
+        \noindent\begin{minipage}{\linewidth}
+            \captionsetup{labelformat=empty}
+            \captionof{figure}{Handout \handoutNum{#1}: #2}
+        \end{minipage}
+    }
+}
+\NewDocumentCommand\handout{m}{%
+
+    \ifcsname handout@#1\endcsname%
+        \csname handout@#1\endcsname%
+    \else%
+        \PackageError{handout}{Handout `#1' not defined}{}%
+    \fi%
+}
+
+\NewDocumentCommand\handoutNum{m}{%
+    \ifcsname handoutNum@#1\endcsname%
+    \else%
+        \stepcounter{handoutCount}%
+        \global\expandafter\edef\csname handoutNum@#1\endcsname {\thehandoutCount}
+    \fi%
+    \ifcsname handoutNum@#1\endcsname%
+        \csname handoutNum@#1\endcsname%
+    \else%
+        \PackageError{handout}{Handout number for `#1' not defined}{}%
+    \fi%
+}
+
+\NewDocumentCommand\refhandout{m}{%
+    (\textbf{Handout \handoutNum{#1}})
+}
+
+% \loadHandouts[<folder>]
+% Scans <folder> (default: ./handouts) for .tex files and \input each one.
+% Also accepts a custom \input prefix when the folder path contains one level
+% of nesting that should be used as-is (e.g. \loadHandouts[./new_handouts/handouts]).
+\NewDocumentCommand\loadHandouts{O{./handouts}}{%
+    \directlua{require("parser").emit_handout_inputs([[#1]])}%
+}
+\makeatother

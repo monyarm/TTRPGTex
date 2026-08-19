@@ -1,0 +1,111 @@
+%% data-access.tex
+%% Shared database access and iteration helpers for ttrpg-core.
+
+%% \get{key} — expands to the current entry's value for that key.
+%% Nested objects: \get{stats@hp}   Arrays: \get{tags} returns comma-separated values.
+%% For specific array indices: \get{tags@1}, \get{tags@count} still work.
+\newcount\ttrpg@arrayindex
+\newcommand{\getArrayContents}[2][,]{%
+    \ttrpg@arrayindex=1\relax%
+    \loop%
+    \ifnum\ttrpg@arrayindex<\csname db@#2@count\endcsname\relax%
+    % Use \unexpanded to protect the delimiter from premature expansion
+    \csname db@#2@\the\ttrpg@arrayindex\endcsname\unexpanded{#1}%
+    \advance\ttrpg@arrayindex by 1\relax%
+    \repeat%
+    \ifnum\ttrpg@arrayindex=\csname db@#2@count\endcsname\relax%
+        \csname db@#2@\the\ttrpg@arrayindex\endcsname%
+    \fi%
+}
+\newcommand{\get}[1]{%
+    \ifcsname db@#1@count\endcsname
+        \getArrayContents[,]{#1}%
+    \else
+        \csname db@#1\endcsname
+    \fi
+}
+
+%% \ifhas{key}{code} — runs code only if key was present in the JSON.
+%% Existence is scoped to the current entry (\currentfile) so optional
+%% fields from prior entries do not leak forward.
+\newcommand{\ifhas}[2]{%
+    \ifcsname db@#1@exists\endcsname
+        \edef\ttrpg@existsmarker{\csname db@#1@exists\endcsname}%
+        \edef\ttrpg@currententry{\currentfile}%
+        \ifdefstrequal{\ttrpg@existsmarker}{\ttrpg@currententry}{#2}{}%
+    \fi%
+}
+
+%% \ifhaselse{key}{then}{else} — runs then/else based on key presence in current entry.
+\newcommand{\ifhaselse}[3]{%
+    \ifcsname db@#1@exists\endcsname
+        \edef\ttrpg@existsmarker{\csname db@#1@exists\endcsname}%
+        \edef\ttrpg@currententry{\currentfile}%
+        \ifdefstrequal{\ttrpg@existsmarker}{\ttrpg@currententry}{#2}{#3}%
+    \else
+        #3%
+    \fi%
+}
+
+%% \getOrDefault{key}{fallback} — expands to key value if present, else fallback.
+\newcommand{\getOrDefault}[2]{%
+    \ifcsname db@#1@exists\endcsname
+        \csname db@#1\endcsname
+    \else
+        #2%
+    \fi
+}
+
+%% Lowercase alias for template convenience.
+\let\getordefault\getOrDefault
+
+%% Key-iteration helpers for object fields (e.g. class_lists).
+
+%% Lookup helpers used by \forEachKeyValue.
+\newcommand{\dbkeyname}[2]{%
+    \csname db@#1@keys@#2\endcsname%
+}
+
+\newcommand{\dbkeysafe}[2]{%
+    \csname db@#1@keys@#2@safe\endcsname%
+}
+
+\newcommand{\dbkeycount}[1]{%
+    \ifcsname db@#1@keys@count\endcsname
+        \csname db@#1@keys@count\endcsname
+    \else
+        0%
+    \fi
+}
+
+\newcommand{\ifKeyValueType}[3]{\ifdefstring{\KeyValueType}{#1}{#2}{#3}}
+
+\newcount\ttrpg@keyindex
+\newcount\ttrpg@keycount
+
+\newcommand{\forEachKeyValue}[2]{%
+    \ttrpg@keyindex=1\relax
+    \ttrpg@keycount=\numexpr\dbkeycount{#1}\relax
+    \edef\KeyCount{\the\ttrpg@keycount}%
+    \advance\ttrpg@keycount by 1\relax
+    \loop
+    \ifnum\ttrpg@keyindex<\ttrpg@keycount
+    \edef\KeyIndex{\the\ttrpg@keyindex}%
+    \edef\KeyName{\dbkeyname{#1}{\KeyIndex}}%
+    \edef\KeySafe{\dbkeysafe{#1}{\KeyIndex}}%
+    \def\KeyValue{\csname db@#1@\KeySafe\endcsname}%
+    \ifcsname db@#1@\KeySafe @type\endcsname%
+        \edef\KeyValueType{\csname db@#1@\KeySafe @type\endcsname}%
+    \else%
+        \edef\KeyValueType{unknown}%
+    \fi%
+    #2%
+    \advance\ttrpg@keyindex by 1\relax
+    \repeat
+}
+
+%% \CRtoXP[system]{cr} — returns XP value for a CR.
+%% Default system is PF1E. Unknown CR/system returns ?.
+\newcommand{\CRtoXP}[2][pf1e]{%
+    \directlua{tex.sprint(ttrpg_xp.cr_to_xp("\luaescapestring{#1}", "\luaescapestring{#2}"))}%
+}

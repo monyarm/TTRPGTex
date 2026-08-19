@@ -1,0 +1,173 @@
+%% print-helpers.tex
+%% Shared display helpers for data-driven templates.
+
+\NewDocumentCommand{\PrintField}{s o m m}{%
+  \ifhas{#4}{%
+    {%
+        \IfValueT{#2}{#2}%
+        \textbf{#3} \get{#4}%
+        \IfBooleanF{#1}{\par}%
+      }%
+  }%
+}
+
+\NewDocumentCommand{\PrintFieldIfExists}{s o m m}{%
+  \ifhas{#4}{%
+    \IfBooleanTF{#1}{%
+      \PrintField*[#2]{#3}{#4}%
+    }{%
+      \PrintField[#2]{#3}{#4}%
+    }%
+  }%
+}
+
+\NewDocumentCommand{\PrintFieldOrDefault}{s o m m m}{%
+  {%
+      \IfValueT{#2}{#2}%
+      \textbf{#3} \getOrDefault{#4}{#5}%
+      \IfBooleanF{#1}{\par}%
+    }%
+}
+
+\newcount\ttrpg@contentcount
+
+\newcommand{\PrintContent}[2][par]{%
+  \getArrayContents[\ifstrempty{#1}{\relax}{\csname #1\endcsname}]{#2}%
+}
+
+\NewDocumentCommand{\PrintSeparator}{s O{} O{0.4pt} O{0.35\baselineskip} m}{%
+\par % Ensure we are in horizontal mode / close previous paragraph
+
+% --- 1. TOP OUTER GAP ---
+\ifdim\pagetotal=\z@
+  \vspace*{-\topskip}%
+\else
+  \vspace{-\parskip}% Strip away previous paragraph's trailing space
+  \vspace{#4}% Add your exact gap
+\fi
+
+{% Start Color Group
+\ifstrempty{#2}{\ifcsname headcolor\endcsname\color{\headcolor}\fi}{\color{#2}}%
+
+% --- 2. TOP RULE ---
+\nointerlineskip % Kill baseline glue above
+% \leaders perfectly fills the remaining space left by wrapfigure
+\noindent\leaders\hrule height #3 \hfill\kern0pt\par
+
+% Inner Top Gap
+\nointerlineskip
+\vspace{#4}%
+
+% --- 3. TEXT ---
+\nointerlineskip
+\noindent\strut\IfBooleanTF{#1}{#5}{\textbf{#5}}\strut\par
+
+% Inner Bottom Gap
+\nointerlineskip
+\vspace{#4}%
+
+% --- 4. BOTTOM RULE ---
+\nointerlineskip
+\noindent\leaders\hrule height #3 \hfill\kern0pt\par
+}% End Color Group
+
+% --- 5. BOTTOM OUTER GAP ---
+\nointerlineskip % Kill baseline glue below
+\vspace{#4}% Add your exact gap
+\vspace{-\parskip}% Strip away the upcoming paragraph's leading space
+}%
+
+%% Heading context helpers.
+%% In hybrid mode, scanner.lua sets \ttrpgcurrentheadingcmd and \ttrpgnextheadingcmd
+%% for each entry. These helpers use those values directly.
+
+\newcommand{\ttrpgresolvecurrentheadingcmd}{%
+  \ifcsname ttrpgcurrentheadingcmd\endcsname
+    \edef\ttrpgresolvedcurrentheadingcmd{\ttrpgcurrentheadingcmd}%
+  \else
+    \def\ttrpgresolvedcurrentheadingcmd{subsection}%
+  \fi
+}
+
+\newcommand{\ttrpgresolvenextheadingcmd}{%
+  \ifcsname ttrpgnextheadingcmd\endcsname
+    \edef\ttrpgresolvednextheadingcmd{\ttrpgnextheadingcmd}%
+  \else
+    \def\ttrpgresolvednextheadingcmd{subsubsection}%
+  \fi
+}
+
+\newcommand{\PrintAtCurrentHeading}[1]{%
+  \ttrpgresolvecurrentheadingcmd
+  \csname\ttrpgresolvedcurrentheadingcmd\endcsname{#1}%
+}
+
+\newcommand{\PrintAtNextHeading}[1]{%
+  \ttrpgresolvenextheadingcmd
+  \csname\ttrpgresolvednextheadingcmd\endcsname{#1}%
+}
+
+%% Generic label/slug helpers.
+%% Use a namespace key (e.g. pantheon) so multiple datasets can coexist.
+\newcommand{\SlugifyLabel}[1]{%
+\directlua{
+local raw = "\luaescapestring{#1}"
+local slug = raw
+:lower()
+:gsub("[']", "")
+:gsub("[^a-z0-9]+", "-")
+:gsub("^-+", "")
+:gsub("-+$", "")
+  if slug == "" then slug = "entry" end
+  tex.sprint(slug)
+  }%
+  }
+
+  \newcommand{\RegisterSeenLabelForName}[3]{%
+  \directlua{
+  ttrpg_seen_labels = ttrpg_seen_labels or {}
+  local ns = "\luaescapestring{#1}"
+  local raw = "\luaescapestring{#2}"
+  local label = "\luaescapestring{#3}"
+  local slug = raw
+  :lower()
+  :gsub("[']", "")
+  :gsub("[^a-z0-9]+", "-")
+  :gsub("^-+", "")
+  :gsub("-+$", "")
+if slug == "" then slug = "entry" end
+ttrpg_seen_labels[ns] = ttrpg_seen_labels[ns] or {}
+ttrpg_seen_labels[ns][slug] = label
+}%
+}
+
+\newcommand{\EnsureLabelOrSee}[2]{%
+\directlua{
+ttrpg_seen_labels = ttrpg_seen_labels or {}
+local ns = "\luaescapestring{#1}"
+local raw = "\luaescapestring{#2}"
+local slug = raw
+:lower()
+:gsub("[']", "")
+:gsub("[^a-z0-9]+", "-")
+:gsub("^-+", "")
+:gsub("-+$", "")
+if slug == "" then slug = "entry" end
+
+ttrpg_seen_labels[ns] = ttrpg_seen_labels[ns] or {}
+local target = ttrpg_seen_labels[ns][slug]
+if target and target ~= "" then
+tex.sprint(string.char(92) .. "noindent" .. string.char(92) .. "footnotesize" .. string.char(92) .. "emph{See " .. raw .. " on page " .. string.char(92) .. "pageref{" .. target .. "}.}")
+else
+ttrpg_seen_labels[ns][slug] = slug
+tex.sprint(string.char(92) .. "label{" .. slug .. "}")
+end
+}%
+}
+
+%% Shared attribution/source-note helper.
+%% Usage: \AttributionTODO{Based on X from Y}
+\newcommand{\AttributionTODO}[1]{%
+  \fcolorbox{red}{yellow!20}{{\textcolor{orange}{\textbf{TODO:}}\ #1}}%
+  \par\noindent
+}
