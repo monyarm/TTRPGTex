@@ -51,4 +51,4 @@ This library was created to facilitate the production of custom TTRPG books, pro
 
 ## License
 
-[Add your license information here]
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
