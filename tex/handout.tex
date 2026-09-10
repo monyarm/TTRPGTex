@@ -7,6 +7,9 @@
 \NewDocumentCommand\defineTextHandout{m m m}{
     \defineHandout{#1}{#2}{\begin{tcolorbox}#3\end{tcolorbox}}
 }
+\NewDocumentCommand\defineCompactTextHandout{m m m}{
+    \defineHandout{#1}{#2}{\begingroup\tcbset{before skip=0.1cm,after skip=0.1cm}\begin{tcolorbox}#3\end{tcolorbox}\endgroup}
+}
 \NewDocumentCommand\defineImageHandout{m m m}{
     \defineHandout{#1}{#2}{\image{#3}}
 }
@@ -52,5 +55,52 @@
 % of nesting that should be used as-is (e.g. \loadHandouts[./new_handouts/handouts]).
 \NewDocumentCommand\loadHandouts{O{./handouts}}{%
     \directlua{require("parser").emit_handout_inputs([[#1]])}%
+}
+
+\NewDocumentCommand{\allhandouts}{m}{%
+\directlua{
+    local lfs = require("lfs")
+    local excluded = {}
+    local raw_excluded = "\luaescapestring{#1}"
+    for id in raw_excluded:gmatch("[^, ]+") do excluded[id] = true end
+
+    local files = {}
+    for filename in lfs.dir("handouts") do
+        if filename:match("[.]tex$") then table.insert(files, filename) end
+    end
+    table.sort(files)
+
+    local seen, ids = {}, {}
+    local slash = string.char(92)
+    local percent = string.char(37)
+    local open_brace = string.char(123)
+    local close_brace = string.char(125)
+    local pattern = slash .. "define[" .. percent .. "a]+Handout" .. open_brace .. "([^" .. close_brace .. "]+)" .. close_brace
+    for _, filename in ipairs(files) do
+        local file = io.open("handouts/" .. filename, "rb")
+        if file then
+            local contents = file:read("*all")
+            file:close()
+            for id in contents:gmatch(pattern) do
+                if not seen[id] then
+                    seen[id] = true
+                    table.insert(ids, id)
+                end
+            end
+        end
+    end
+
+    local numbers = {}
+    for _, id in ipairs(ids) do
+        numbers[id] = tonumber(token.get_macro("handoutNum@" .. id)) or math.huge
+    end
+    table.sort(ids, function(left, right)
+        if numbers[left] == numbers[right] then return left < right end
+        return numbers[left] < numbers[right]
+    end)
+    for _, id in ipairs(ids) do
+        if not excluded[id] then tex.sprint(slash .. "handout" .. open_brace .. id .. close_brace) end
+    end
+}
 }
 \makeatother
