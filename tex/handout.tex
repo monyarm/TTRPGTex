@@ -2,31 +2,38 @@
 
 \newcounter{handoutCount}
 \setcounter{handoutCount}{0}
+\newif\ifhandoutallmode
+\handoutallmodefalse
 
 \makeatletter
-\NewDocumentCommand\defineTextHandout{m m m}{
-    \defineHandout{#1}{#2}{\begin{tcolorbox}#3\end{tcolorbox}}
+\usepackage{tcolorbox}
+\tcbuselibrary{skins}
+\NewDocumentCommand\defineTextHandout{m m +m}{
+    \defineHandout{#1}{#2}{\begin{tcolorbox}[left=2mm,right=2mm,boxsep=0pt,before upper={\leftskip=0pt\relax\rightskip=0pt\relax\parindent=0pt\relax},before lower={\leftskip=0pt\relax\rightskip=0pt\relax\parindent=0pt\relax}]#3\end{tcolorbox}}
 }
-\NewDocumentCommand\defineCompactTextHandout{m m m}{
-    \defineHandout{#1}{#2}{\begingroup\tcbset{before skip=0.1cm,after skip=0.1cm}\begin{tcolorbox}#3\end{tcolorbox}\endgroup}
+\NewDocumentCommand\defineCompactTextHandout{m m +m}{
+    \defineHandout{#1}{#2}{\begingroup\tcbset{before skip=0.1cm,after skip=0.1cm,left=2mm,right=2mm,boxsep=0pt,before upper={\leftskip=0pt\relax\rightskip=0pt\relax\parindent=0pt\relax},before lower={\leftskip=0pt\relax\rightskip=0pt\relax\parindent=0pt\relax}}\begin{tcolorbox}#3\end{tcolorbox}\endgroup}
 }
-\NewDocumentCommand\defineImageHandout{m m m}{
-    \defineHandout{#1}{#2}{\image{#3}}
+\NewDocumentCommand\defineImageHandout{m m m O{1} O{}}{
+    \defineHandout{#1}{#2}{\image[#4][#5]{#3}}
 }
-\NewDocumentCommand\defineHandout{m m m}{
+\NewDocumentCommand\defineHandout{m m +m}{
 
     \global\expandafter\gdef\csname handout@#1\endcsname{
+        \begingroup
+        \tcbset{before skip=0.1cm,after skip=0.1cm}
         #3
+        \endgroup
         \noindent\begin{minipage}{\linewidth}
-            \captionsetup{labelformat=empty}
+            \captionsetup{labelformat=empty,skip=0mm}
             \captionof{figure}{Handout \handoutNum{#1}: #2}
-        \end{minipage}
+        \end{minipage}\par
     }
 }
 \NewDocumentCommand\handout{m}{%
 
     \ifcsname handout@#1\endcsname%
-        \csname handout@#1\endcsname%
+        \csname handout@#1\endcsname
     \else%
         \PackageError{handout}{Handout `#1' not defined}{}%
     \fi%
@@ -57,8 +64,55 @@
     \directlua{require("parser").emit_handout_inputs([[#1]])}%
 }
 
+% Newspaper handout macros
+\newtcolorbox{newspaperclip}{
+    colback=black!5!white,
+    colframe=black,
+    arc=0mm,
+    boxrule=1pt,
+    left=2mm, right=2mm, top=1mm, bottom=1mm,
+    boxsep=0pt
+}
+\def\@np@dc@grab#1#2\@newspaper@end{\lettrine[lines=3,lhang=0.15,nindent=0pt]{\textbf{#1}}{#2}}
+\NewDocumentCommand\defineNewspaperHandout{m m m m m m +m}{
+    \defineHandout{#1}{#2}{
+        \begin{newspaperclip}
+            {\centering{\Huge\bfseries #3}\par}
+            \vspace{1mm}
+            \noindent{\footnotesize\textit{#4}}\par
+            \hrule height 1pt \kern 1pt \hrule height 0.5pt
+            \vspace{1mm}
+            {\centering
+                {\normalsize\bfseries #6}\\[0.25mm]
+                {\footnotesize\textit{By #5}}
+            \par}
+            \vspace{1mm}
+            \begingroup
+            \setlength{\multicolsep}{0pt}
+            \begin{multicols}{2}[\setlength{\columnsep}{3mm}]
+                \expandafter\@np@dc@grab#7\@newspaper@end
+            \end{multicols}
+            \endgroup
+        \end{newspaperclip}
+    }
+}
+\NewDocumentCommand\defineNewspaperSnippet{m m m m +m}{
+    \defineHandout{#1}{#2}{
+        \begin{newspaperclip}
+            {\centering
+                {\normalsize\bfseries #3}\\[0.25mm]
+                {\footnotesize\textit{#4}}
+            \par}
+            \vspace{1mm}
+            #5
+        \end{newspaperclip}
+    }
+}
+
 \NewDocumentCommand{\allhandouts}{m}{%
-\directlua{
+    \begingroup
+    \handoutallmodetrue
+    \directlua{
     local lfs = require("lfs")
     local excluded = {}
     local raw_excluded = "\luaescapestring{#1}"
@@ -102,5 +156,6 @@
         if not excluded[id] then tex.sprint(slash .. "handout" .. open_brace .. id .. close_brace) end
     end
 }
+    \endgroup
 }
 \makeatother

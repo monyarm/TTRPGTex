@@ -22,6 +22,7 @@ function M.init(sty_path)
   ttrpg_register_module("scanner")
   ttrpg_register_module("ogl")
   ttrpg_register_module("folder_counter")
+  ttrpg_register_module("randomtable")
 
   function ttrpg_load_module(name)
     local loaded = package.loaded[name]

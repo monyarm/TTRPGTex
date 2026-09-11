@@ -1,0 +1,37 @@
+% columnflow.tex
+% \FlowEntry{<content>} typesets <content> (a location/character section, etc.)
+% inside a multicols/multicols* environment such that:
+%   - if it fits within a single column, it is placed as one unbreakable
+%     unit, so ordinary TeX page-breaking either drops it into whatever
+%     column has room, or bumps the whole thing to the next column if not
+%     (letting short entries share a column or a page automatically);
+%   - if it needs more than one column, it starts on a fresh page and is
+%     sliced into column-sized pieces with \vsplit, so it is never split
+%     across an unrelated page boundary.
+% <content> is typeset exactly once (into a measuring box that is then
+% placed or split), so section/ToC counters and handout numbering are
+% never invoked twice.
+\makeatletter
+\newbox\ttrpg@flowbox
+\newbox\ttrpg@flowpiece
+\newdimen\ttrpg@flowht
+\newdimen\ttrpg@flowsafeheight
+\newcommand{\ttrpg@FlowSplit}{%
+  \setbox\ttrpg@flowpiece=\vsplit\ttrpg@flowbox to \ttrpg@flowsafeheight
+  \setbox\ttrpg@flowpiece=\vbox{\unvbox\ttrpg@flowpiece}%
+  \noindent\box\ttrpg@flowpiece\par
+  \ttrpg@flowht=\ht\ttrpg@flowbox \advance\ttrpg@flowht by \dp\ttrpg@flowbox
+  \ifdim\ttrpg@flowht>0pt \columnbreak\ttrpg@FlowSplit\fi
+}
+\newcommand{\FlowEntry}[1]{%
+  \ttrpg@flowsafeheight=\textheight
+  \setbox\ttrpg@flowbox=\vbox{\hsize=\linewidth\noindent #1}%
+  \ttrpg@flowht=\ht\ttrpg@flowbox \advance\ttrpg@flowht by \dp\ttrpg@flowbox
+  \ifdim\ttrpg@flowht>\ttrpg@flowsafeheight
+    \newpage
+    \ttrpg@FlowSplit
+  \else
+    \noindent\box\ttrpg@flowbox\par
+  \fi
+}
+\makeatother

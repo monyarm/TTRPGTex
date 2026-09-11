@@ -109,3 +109,27 @@ tex.print("\\input{" .. manifest .. "}")
     ttrpg_ogl.generate("\luaescapestring{#1}")
   }%
 }
+
+%% \RandomTable{csvpath}
+%% Reads a CSV and typesets a random-roll table, with a "dN" die column
+%% auto-generated (N = number of data rows, numbered 1..N) — including the
+%% header, e.g. 10 data rows produces a "d10" column heading.
+%%
+%% CSV columns: first row = header names for the data columns (the die
+%% column itself is not a CSV column). Each remaining row is one roll
+%% result. The first data column stretches to fill the table width; any
+%% further columns are centered — matching the common "d10 | Name | Qty |
+%% Value" table shape.
+\newcommand{\RandomTable}[1]{%
+  \directlua{
+    if not ttrpg_randomtable then
+    local ok, mod = pcall(ttrpg_load_module, "randomtable")
+    if not ok then
+    error("ttrpg-core: failed to load randomtable.lua: " .. tostring(mod))
+    end
+    ttrpg_randomtable = mod
+    end
+
+    ttrpg_randomtable.generate("\luaescapestring{#1}")
+  }%
+}

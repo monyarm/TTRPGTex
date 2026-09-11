@@ -1,7 +1,8 @@
 -- utils.lua
--- Shared helpers: key sanitisation, TeX escaping, path utilities, cache stems, mkdir.
+-- Shared helpers: key sanitisation, TeX escaping, path utilities, cache stems,
+-- mkdir, CSV parsing.
 --
--- Required by: parser.lua, scanner.lua
+-- Required by: parser.lua, scanner.lua, randomtable.lua
 -- Loaded by:   ttrpg-core.sty
 
 local lfs = require("lfs")
@@ -177,6 +178,89 @@ function M.get_cache_stem(rel_path)
   rel_path = rel_path:gsub("_+",    "_")
   if rel_path == "" then rel_path = "k_unnamed" end
   return rel_path
+end
+
+-- ── CSV parsing ────────────────────────────────────────────────────────────────
+
+-- parse_csv(path) → a list of row arrays (RFC-4180-compatible).
+--
+-- Fields containing commas or newlines must be quoted with double quotes;
+-- escaped quotes inside a quoted field are written as "". Blank lines are
+-- skipped. LaTeX macros in any field are passed through as-is.
+function M.parse_csv(path)
+  M.force_tex_input_record(path)
+
+  local f, err = io.open(path, "r")
+  if not f then
+    error("parse_csv: cannot open CSV '" .. path .. "': " .. tostring(err))
+  end
+  local content = f:read("*a")
+  f:close()
+
+  local rows = {}
+  local i    = 1
+  local n    = #content
+
+  while i <= n do
+    local row = {}
+
+    while true do
+      if i > n then break end
+
+      if content:sub(i, i) == '"' then
+        -- Quoted field: read until closing unescaped "
+        i = i + 1
+        local chars = {}
+        while i <= n do
+          local c = content:sub(i, i)
+          if c == '"' then
+            if content:sub(i + 1, i + 1) == '"' then
+              chars[#chars + 1] = '"'  -- "" → literal "
+              i = i + 2
+            else
+              i = i + 1  -- skip closing quote
+              break
+            end
+          else
+            chars[#chars + 1] = c
+            i = i + 1
+          end
+        end
+        row[#row + 1] = table.concat(chars)
+      else
+        -- Unquoted field: read until comma or line ending
+        local start = i
+        while i <= n do
+          local c = content:sub(i, i)
+          if c == ',' or c == '\n' or c == '\r' then break end
+          i = i + 1
+        end
+        row[#row + 1] = content:sub(start, i - 1)
+      end
+
+      if i > n then break end
+      local sep = content:sub(i, i)
+      if sep == ',' then
+        i = i + 1  -- comma: next field in same row
+      elseif sep == '\r' then
+        i = i + 1
+        if content:sub(i, i) == '\n' then i = i + 1 end
+        break  -- end of row
+      elseif sep == '\n' then
+        i = i + 1
+        break  -- end of row
+      else
+        break
+      end
+    end
+
+    -- Skip blank rows
+    if #row > 0 and not (#row == 1 and row[1] == "") then
+      rows[#rows + 1] = row
+    end
+  end
+
+  return rows
 end
 
 -- ── Directory management ──────────────────────────────────────────────────────
